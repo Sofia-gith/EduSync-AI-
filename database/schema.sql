@@ -24,10 +24,11 @@ CREATE TABLE IF NOT EXISTS pedagogical_knowledge_v384 (
 
 -- FUNCTION: match_documents_v384
 -- Returns top-N most similar documents to a query embedding using cosine distance
+DROP FUNCTION IF EXISTS match_documents_v384(vector(384), int, jsonb);
 CREATE OR REPLACE FUNCTION match_documents_v384(
-  query_embedding vector(384),
-  match_count int DEFAULT 5,
-  filter jsonb DEFAULT '{}'::jsonb
+  filter jsonb,
+  match_count int,
+  query_embedding vector(384)
 ) RETURNS TABLE (
   id uuid,
   content text,
@@ -42,11 +43,17 @@ BEGIN
     p.metadata,
     1 - (p.embedding <=> query_embedding) AS similarity
   FROM pedagogical_knowledge_v384 p
-  WHERE (filter = '{}'::jsonb OR p.metadata @> filter)
+  WHERE (filter IS NULL OR filter = '{}'::jsonb OR p.metadata @> filter)
   ORDER BY p.embedding <=> query_embedding
   LIMIT match_count;
 END;
 $$ LANGUAGE plpgsql STABLE;
+
+ALTER TABLE public.pedagogical_knowledge_v384 ENABLE ROW LEVEL SECURITY;
+CREATE POLICY IF NOT EXISTS pedagogical_knowledge_v384_allow_read
+  ON public.pedagogical_knowledge_v384
+  FOR SELECT
+  USING (true);
 
 -- TABLE: offline_queries
 -- Stores anonymized offline queries submitted by devices for analytics
